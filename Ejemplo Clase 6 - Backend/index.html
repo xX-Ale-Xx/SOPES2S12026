@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MEM_MONITOR // KERNEL DASHBOARD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #050810;
+    --bg2:       #090d1a;
+    --panel:     #0b1120;
+    --border:    #1a2a4a;
+    --accent:    #00d4ff;
+    --accent2:   #ff6b35;
+    --green:     #00ff88;
+    --yellow:    #ffd700;
+    --red:       #ff3355;
+    --purple:    #b06aff;
+    --text:      #c8d8f0;
+    --text-dim:  #4a6080;
+    --glow:      0 0 12px rgba(0,212,255,.35);
+    --glow2:     0 0 12px rgba(255,107,53,.35);
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ---- grid scanlines overlay ---- */
+  body::before {
+    content:'';
+    position: fixed; inset:0; pointer-events:none; z-index:999;
+    background:
+      repeating-linear-gradient(0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,.18) 2px,
+        rgba(0,0,0,.18) 4px);
+  }
+
+  /* ---- header ---- */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky; top:0; z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    font-weight: 900;
+    font-size: 1.1rem;
+    letter-spacing: 4px;
+    color: var(--accent);
+    text-shadow: var(--glow);
+  }
+  .logo span { color: var(--accent2); text-shadow: var(--glow2); }
+
+  .status-bar {
+    display: flex; gap: 24px; align-items: center;
+    font-size: .72rem; color: var(--text-dim);
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-dim);
+    display: inline-block; margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  .dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.offline { background: var(--red); animation: none; }
+
+  @keyframes pulse {
+    0%,100%{ opacity:1 } 50%{ opacity:.3 }
+  }
+
+  #timestamp { color: var(--accent); font-size:.72rem; }
+
+  /* ---- main layout ---- */
+  main {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    display: grid;
+    gap: 20px;
+  }
+
+  /* ---- section title ---- */
+  .section-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: .65rem;
+    letter-spacing: 3px;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .section-title::after {
+    content:''; flex:1; height:1px; background: var(--border);
+  }
+
+  /* ---- stat cards row ---- */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color .3s, box-shadow .3s;
+  }
+  .card::before {
+    content:'';
+    position: absolute; top:0; left:0; right:0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent-c, var(--accent)), transparent);
+    opacity: .7;
+  }
+  .card:hover {
+    border-color: var(--accent-c, var(--accent));
+    box-shadow: 0 0 20px rgba(0,212,255,.08);
+  }
+
+  .card-label {
+    font-size: .62rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .card-value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--accent-c, var(--accent));
+    text-shadow: var(--glow);
+    transition: color .4s;
+  }
+  .card-unit {
+    font-size: .7rem;
+    color: var(--text-dim);
+    margin-top: 4px;
+  }
+  .card-sub {
+    font-size: .65rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  /* ---- gauge bars ---- */
+  .gauge-wrap {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px 24px;
+  }
+  .gauge-row {
+    display: grid;
+    grid-template-columns: 160px 1fr 80px;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .gauge-row:last-child { margin-bottom:0; }
+  .gauge-name { font-size:.72rem; color: var(--text-dim); }
+  .bar-track {
+    height: 6px;
+    background: rgba(255,255,255,.05);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width .8s cubic-bezier(.4,0,.2,1);
+    position: relative;
+  }
+  .bar-fill::after {
+    content:'';
+    position: absolute; right:0; top:-2px; bottom:-2px; width:3px;
+    background: inherit;
+    filter: brightness(2) blur(2px);
+    border-radius: 2px;
+  }
+  .gauge-pct {
+    font-size:.7rem;
+    text-align: right;
+    color: var(--text);
+  }
+
+  /* ---- two-column layout ---- */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 900px) { .two-col { grid-template-columns:1fr; } }
+
+  /* ---- page faults panel ---- */
+  .fault-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 22px 24px;
+    display: flex; gap: 30px; align-items: center;
+    flex-wrap: wrap;
+  }
+  .fault-item { text-align:center; flex:1; min-width:100px; }
+  .fault-num {
+    font-family:'Orbitron',sans-serif;
+    font-size:1.8rem;
+    font-weight:700;
+  }
+  .fault-label { font-size:.62rem; color:var(--text-dim); letter-spacing:2px; margin-top:6px; }
+
+  /* ---- sparkline canvas ---- */
+  .chart-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px 24px;
+  }
+  .chart-panel canvas {
+    width: 100% !important;
+    height: 120px !important;
+    display: block;
+  }
+
+  /* ---- process table ---- */
+  .proc-panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .proc-header {
+    display: grid;
+    grid-template-columns: 55px 1fr 110px 90px 180px;
+    gap: 12px;
+    padding: 10px 20px;
+    background: rgba(0,212,255,.04);
+    border-bottom: 1px solid var(--border);
+    font-size: .62rem;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+  .proc-row {
+    display: grid;
+    grid-template-columns: 55px 1fr 110px 90px 180px;
+    gap: 12px;
+    padding: 11px 20px;
+    border-bottom: 1px solid rgba(26,42,74,.5);
+    font-size: .75rem;
+    align-items: center;
+    transition: background .2s;
+    animation: rowIn .4s ease both;
+  }
+  .proc-row:hover { background: rgba(0,212,255,.04); }
+  .proc-row:last-child { border-bottom:0; }
+
+  @keyframes rowIn {
+    from { opacity:0; transform: translateX(-8px); }
+    to   { opacity:1; transform: translateX(0); }
+  }
+
+  .rank {
+    font-family:'Orbitron',sans-serif;
+    font-size:.7rem;
+    color: var(--text-dim);
+  }
+  .rank-1 { color: var(--yellow); text-shadow: 0 0 8px var(--yellow); }
+  .rank-2 { color: #c0c0c0; }
+  .rank-3 { color: #cd7f32; }
+
+  .proc-name { color: var(--text); font-weight:500; }
+  .proc-pid  { color: var(--text-dim); }
+  .proc-rss  { color: var(--accent); font-family:'Orbitron',sans-serif; font-size:.7rem; }
+
+  .mini-bar-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .mini-bar-track {
+    flex:1; height:4px; background: rgba(255,255,255,.05); border-radius:2px; overflow:hidden;
+  }
+  .mini-bar-fill {
+    height:100%; border-radius:2px;
+    transition: width .8s cubic-bezier(.4,0,.2,1);
+  }
+  .mini-pct { font-size:.65rem; color:var(--text-dim); min-width:38px; text-align:right; }
+
+  /* ---- connection overlay ---- */
+  #overlay {
+    position: fixed; inset:0;
+    background: rgba(5,8,16,.95);
+    display: flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    z-index: 9000;
+    gap: 20px;
+    transition: opacity .5s;
+  }
+  #overlay.hidden { opacity:0; pointer-events:none; }
+  #overlay .ov-title {
+    font-family:'Orbitron',sans-serif;
+    font-size:1rem; letter-spacing:4px;
+    color: var(--accent); text-shadow: var(--glow);
+  }
+  #overlay .ov-sub { font-size:.75rem; color: var(--text-dim); }
+  .spinner {
+    width:40px; height:40px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+
+  /* ---- ws url input ---- */
+  .ws-config {
+    display: flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding: 14px 24px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+  }
+  .ws-config label { font-size:.7rem; color:var(--text-dim); letter-spacing:1px; }
+  .ws-config input {
+    flex:1; min-width:220px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius:3px;
+    color: var(--accent);
+    font-family:'Share Tech Mono',monospace;
+    font-size:.8rem;
+    padding: 7px 12px;
+    outline:none;
+    transition: border-color .2s;
+  }
+  .ws-config input:focus { border-color: var(--accent); }
+  .ws-config button {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family:'Share Tech Mono',monospace;
+    font-size:.75rem;
+    padding: 7px 18px;
+    border-radius:3px;
+    cursor:pointer;
+    letter-spacing:1px;
+    transition: background .2s, color .2s;
+  }
+  .ws-config button:hover { background: var(--accent); color: var(--bg); }
+
+  .error-msg { font-size:.7rem; color:var(--red); display:none; }
+</style>
+</head>
+<body>
+
+<!-- Overlay de conexión -->
+<div id="overlay">
+  <div class="spinner"></div>
+  <div class="ov-title">MEM_MONITOR</div>
+  <div class="ov-sub" id="ov-msg">Conectando al servidor WebSocket…</div>
+</div>
+
+<header>
+  <div class="logo">MEM<span>_</span>MONITOR <span style="font-size:.6rem;letter-spacing:2px;color:var(--text-dim)">// KERNEL DASHBOARD</span></div>
+  <div class="status-bar">
+    <div><span class="dot" id="ws-dot"></span><span id="ws-state">DESCONECTADO</span></div>
+    <div id="timestamp">--:--:--</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- WS config -->
+  <div class="ws-config">
+    <label>WS://</label>
+    <input id="ws-url" type="text" value="192.168.1.156:8080" placeholder="host:puerto">
+    <button id="btn-connect">CONECTAR</button>
+    <span class="error-msg" id="err-msg"></span>
+  </div>
+
+  <!-- Memoria: tarjetas -->
+  <div>
+    <div class="section-title">Estadísticas de Memoria</div>
+    <div class="cards-grid">
+      <div class="card" style="--accent-c:var(--accent)">
+        <div class="card-label">Memoria Usada</div>
+        <div class="card-value" id="c-used">—</div>
+        <div class="card-unit">MB</div>
+        <div class="card-sub" id="c-used-kb">— KB</div>
+      </div>
+      <div class="card" style="--accent-c:var(--green)">
+        <div class="card-label">Memoria Libre</div>
+        <div class="card-value" id="c-free">—</div>
+        <div class="card-unit">MB</div>
+        <div class="card-sub" id="c-free-kb">— KB</div>
+      </div>
+      <div class="card" style="--accent-c:var(--purple)">
+        <div class="card-label">Caché</div>
+        <div class="card-value" id="c-cache">—</div>
+        <div class="card-unit">MB</div>
+        <div class="card-sub" id="c-cache-kb">— KB</div>
+      </div>
+      <div class="card" style="--accent-c:var(--yellow)">
+        <div class="card-label">Swap Usada</div>
+        <div class="card-value" id="c-swap">—</div>
+        <div class="card-unit">MB</div>
+        <div class="card-sub" id="c-swap-kb">— KB</div>
+      </div>
+      <div class="card" style="--accent-c:var(--accent)">
+        <div class="card-label">Páginas Activas</div>
+        <div class="card-value" id="c-act">—</div>
+        <div class="card-unit">MB</div>
+      </div>
+      <div class="card" style="--accent-c:var(--text-dim)">
+        <div class="card-label">Páginas Inactivas</div>
+        <div class="card-value" id="c-inact">—</div>
+        <div class="card-unit">MB</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Barras de distribución + fallos -->
+  <div class="two-col">
+
+    <div class="gauge-wrap">
+      <div class="section-title">Distribución de RAM</div>
+      <div class="gauge-row">
+        <span class="gauge-name">Usada</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-used" style="background:var(--accent);width:0%"></div></div>
+        <span class="gauge-pct" id="pct-used">0%</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-name">Libre</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-free" style="background:var(--green);width:0%"></div></div>
+        <span class="gauge-pct" id="pct-free">0%</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-name">Caché</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-cache" style="background:var(--purple);width:0%"></div></div>
+        <span class="gauge-pct" id="pct-cache">0%</span>
+      </div>
+      <div class="gauge-row">
+        <span class="gauge-name">Swap</span>
+        <div class="bar-track"><div class="bar-fill" id="bar-swap" style="background:var(--yellow);width:0%"></div></div>
+        <span class="gauge-pct" id="pct-swap">0%</span>
+      </div>
+    </div>
+
+    <div class="fault-panel">
+      <div class="section-title" style="width:100%">Fallos de Página</div>
+      <div class="fault-item">
+        <div class="fault-num" style="color:var(--green)" id="f-minor">—</div>
+        <div class="fault-label">Fallos Menores</div>
+      </div>
+      <div style="width:1px;background:var(--border);align-self:stretch"></div>
+      <div class="fault-item">
+        <div class="fault-num" style="color:var(--red)" id="f-major">—</div>
+        <div class="fault-label">Fallos Mayores</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sparkline -->
+  <div class="chart-panel">
+    <div class="section-title">Uso de Memoria — Historial (últimas 40 muestras)</div>
+    <canvas id="sparkline"></canvas>
+  </div>
+
+  <!-- Top 10 procesos -->
+  <div>
+    <div class="section-title">Top 10 Procesos — Mayor Consumo de Memoria</div>
+    <div class="proc-panel">
+      <div class="proc-header">
+        <span>#</span>
+        <span>Proceso</span>
+        <span>PID</span>
+        <span>RSS</span>
+        <span>Uso</span>
+      </div>
+      <div id="proc-list"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ================================================================
+   WebSocket client + rendering
+   ================================================================ */
+
+const $ = id => document.getElementById(id);
+const fmtMB = kb => kb != null ? (kb / 1024).toFixed(0) : '—';
+const fmtKB = kb => kb != null ? Number(kb).toLocaleString('es') : '—';
+const fmtNum = n  => n != null ? Number(n).toLocaleString('es') : '—';
+
+/* ---- Sparkline ---- */
+const MAX_HISTORY = 40;
+const history = { used:[], free:[], cache:[] };
+
+function drawSparkline() {
+  const canvas = $('sparkline');
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.parentElement.clientWidth - 48;
+  const H = 120;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const datasets = [
+    { data: history.used,  color: '#00d4ff' },
+    { data: history.free,  color: '#00ff88' },
+    { data: history.cache, color: '#b06aff' },
+  ];
+
+  const allVals = datasets.flatMap(d => d.data);
+  if (!allVals.length) return;
+  const maxV = Math.max(...allVals);
+
+  datasets.forEach(({ data, color }) => {
+    if (!data.length) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 6;
+
+    const step = W / (MAX_HISTORY - 1);
+    data.forEach((v, i) => {
+      const x = i * step;
+      const y = H - 8 - ((v / maxV) * (H - 16));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    /* fill under */
+    ctx.lineTo((data.length - 1) * step, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, color + '30');
+    grad.addColorStop(1, color + '00');
+    ctx.fillStyle = grad;
+    ctx.fill();
+  });
+
+  /* grid lines */
+  ctx.strokeStyle = 'rgba(255,255,255,.05)';
+  ctx.lineWidth = 1;
+  [.25, .5, .75].forEach(f => {
+    const y = H - 8 - f * (H - 16);
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  });
+
+  /* legend */
+  const legend = [
+    ['Usada','#00d4ff'], ['Libre','#00ff88'], ['Caché','#b06aff']
+  ];
+  legend.forEach(([label, color], i) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(i * 90 + 10, 6, 10, 3);
+    ctx.fillStyle = 'rgba(200,216,240,.5)';
+    ctx.font = '10px Share Tech Mono, monospace';
+    ctx.fillText(label, i * 90 + 26, 12);
+  });
+}
+
+/* ---- Process table ---- */
+const pctColors = pct => {
+  if (pct > 10) return 'var(--red)';
+  if (pct > 5)  return 'var(--yellow)';
+  if (pct > 2)  return 'var(--accent)';
+  return 'var(--green)';
+};
+
+const rankClass = i => i === 0 ? 'rank rank-1' : i === 1 ? 'rank rank-2' : i === 2 ? 'rank rank-3' : 'rank';
+
+function renderProcs(procs) {
+  const list = $('proc-list');
+  const maxPct = procs.length ? (procs[0].mem_percent || 1) : 1;
+  list.innerHTML = procs.map((p, i) => {
+    const pct   = p.mem_percent || 0;
+    const color = pctColors(pct);
+    const barW  = maxPct > 0 ? (pct / maxPct * 100).toFixed(1) : 0;
+    return `
+    <div class="proc-row" style="animation-delay:${i*40}ms">
+      <span class="${rankClass(i)}">#${i+1}</span>
+      <span class="proc-name">${p.name}</span>
+      <span class="proc-pid">${p.pid}</span>
+      <span class="proc-rss">${fmtKB(p.rss_kb)} KB</span>
+      <div class="mini-bar-wrap">
+        <div class="mini-bar-track">
+          <div class="mini-bar-fill" style="width:${barW}%;background:${color}"></div>
+        </div>
+        <span class="mini-pct" style="color:${color}">${pct.toFixed(2)}%</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---- Update UI from JSON ---- */
+function update(d) {
+  /* Timestamp */
+  const ts = d.timestamp ? d.timestamp.split('T')[1] || d.timestamp : '--:--:--';
+  $('timestamp').textContent = ts;
+
+  /* Cards */
+  const mem     = d.memory || {};
+  const usedKb  = mem.used_kb   ?? null;
+  const freeKb  = mem.free_kb   ?? null;
+  const cacheKb = mem.cached_kb ?? null;
+  const swapKb  = mem.swap_used_kb ?? null;
+  const actKb   = mem.active_kb   ?? null;
+  const inactKb = mem.inactive_kb ?? null;
+  const totalKb = mem.total_kb    ?? null;
+
+  $('c-used').textContent    = fmtMB(usedKb);
+  $('c-used-kb').textContent = usedKb  != null ? fmtKB(usedKb)  + ' KB' : '—';
+  $('c-free').textContent    = fmtMB(freeKb);
+  $('c-free-kb').textContent = freeKb  != null ? fmtKB(freeKb)  + ' KB' : '—';
+  $('c-cache').textContent   = fmtMB(cacheKb);
+  $('c-cache-kb').textContent= cacheKb != null ? fmtKB(cacheKb) + ' KB' : '—';
+  $('c-swap').textContent    = fmtMB(swapKb);
+  $('c-swap-kb').textContent = swapKb  != null ? fmtKB(swapKb)  + ' KB' : '—';
+  $('c-act').textContent     = fmtMB(actKb);
+  $('c-inact').textContent   = fmtMB(inactKb);
+
+  /* Page faults */
+  const pf = d.page_faults || {};
+  $('f-minor').textContent = fmtNum(pf.minor ?? null);
+  $('f-major').textContent = fmtNum(pf.major ?? null);
+
+  /* Gauge bars */
+  const total = totalKb || ((usedKb || 0) + (freeKb || 0) + (cacheKb || 0)) || 1;
+  const pctUsed  = usedKb  != null ? (usedKb  / total * 100).toFixed(1) : 0;
+  const pctFree  = freeKb  != null ? (freeKb  / total * 100).toFixed(1) : 0;
+  const pctCache = cacheKb != null ? (cacheKb / total * 100).toFixed(1) : 0;
+  const pctSwap  = swapKb  >   0   ? Math.min((swapKb / total * 100), 100).toFixed(1) : 0;
+
+  $('bar-used').style.width  = pctUsed  + '%';
+  $('bar-free').style.width  = pctFree  + '%';
+  $('bar-cache').style.width = pctCache + '%';
+  $('bar-swap').style.width  = pctSwap  + '%';
+  $('pct-used').textContent  = pctUsed  + '%';
+  $('pct-free').textContent  = pctFree  + '%';
+  $('pct-cache').textContent = pctCache + '%';
+  $('pct-swap').textContent  = pctSwap  + '%';
+
+  /* Sparkline history */
+  if (usedKb  != null) history.used.push(usedKb);
+  if (freeKb  != null) history.free.push(freeKb);
+  if (cacheKb != null) history.cache.push(cacheKb);
+  if (history.used.length  > MAX_HISTORY) history.used.shift();
+  if (history.free.length  > MAX_HISTORY) history.free.shift();
+  if (history.cache.length > MAX_HISTORY) history.cache.shift();
+  drawSparkline();
+
+  /* Process table */
+  if (d.top_processes && d.top_processes.length) renderProcs(d.top_processes);
+}
+
+/* ================================================================
+   WebSocket logic
+   ================================================================ */
+let ws = null;
+
+function setStatus(online, label) {
+  const dot   = $('ws-dot');
+  const state = $('ws-state');
+  dot.className   = 'dot ' + (online ? 'online' : 'offline');
+  state.textContent = label;
+}
+
+function connectWS(url) {
+  if (ws) { ws.onclose = null; ws.close(); }
+  setStatus(false, 'CONECTANDO…');
+  $('overlay').classList.remove('hidden');
+  $('ov-msg').textContent = 'Conectando a ws://' + url + ' …';
+  $('err-msg').style.display = 'none';
+
+  try {
+    ws = new WebSocket('ws://' + url);
+  } catch(e) {
+    showError('URL inválida: ' + e.message);
+    return;
+  }
+
+  ws.onopen = () => {
+    setStatus(true, 'EN LÍNEA');
+    $('overlay').classList.add('hidden');
+  };
+
+  ws.onmessage = evt => {
+    try {
+      const data = JSON.parse(evt.data);
+      update(data);
+    } catch(e) {
+      console.error('JSON parse error:', e);
+    }
+  };
+
+  ws.onclose = () => {
+    setStatus(false, 'DESCONECTADO');
+    $('overlay').classList.remove('hidden');
+    $('ov-msg').textContent = 'Conexión perdida. Reconectando en 3s…';
+    setTimeout(() => connectWS($('ws-url').value.trim()), 3000);
+  };
+
+  ws.onerror = () => showError('No se pudo conectar a ws://' + url);
+}
+
+function showError(msg) {
+  const el = $('err-msg');
+  el.textContent = msg;
+  el.style.display = 'inline';
+  $('overlay').classList.add('hidden');
+  setStatus(false, 'ERROR');
+}
+
+$('btn-connect').addEventListener('click', () => {
+  connectWS($('ws-url').value.trim());
+});
+
+$('ws-url').addEventListener('keydown', e => {
+  if (e.key === 'Enter') connectWS($('ws-url').value.trim());
+});
+
+window.addEventListener('resize', drawSparkline);
+
+/* Auto-connect on load */
+window.addEventListener('load', () => {
+  connectWS($('ws-url').value.trim());
+});
+</script>
+</body>
+</html>
