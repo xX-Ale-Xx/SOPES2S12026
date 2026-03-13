@@ -1,0 +1,110 @@
+# mem_monitor — Módulo de Kernel Linux
+
+Módulo de kernel que expone estadísticas completas de memoria del sistema
+y el **Top 10 de procesos** con mayor consumo de RAM, accesibles vía
+`/proc/mem_monitor`.
+
+---
+
+## Información que expone
+
+### Estadísticas globales
+
+| Campo               | Descripción                                      |
+|---------------------|--------------------------------------------------|
+| `memoria_usada`     | RAM activamente usada por procesos (KB / MB)     |
+| `memoria_libre`     | RAM completamente libre (KB / MB)                |
+| `memoria_cache`     | Buffers + page cache del kernel (KB / MB)        |
+| `swap_usada`        | Swap consumida (KB / MB)                         |
+| `fallos_menores`    | Minor page faults acumulados de todos los procs  |
+| `fallos_mayores`    | Major page faults acumulados de todos los procs  |
+| `paginas_activas`   | Páginas activas (anon + file) en KB / MB         |
+| `paginas_inactivas` | Páginas inactivas (anon + file) en KB / MB       |
+
+### Top 10 procesos por uso de memoria
+
+| Columna   | Descripción                                           |
+|-----------|-------------------------------------------------------|
+| PID       | ID del proceso                                        |
+| NOMBRE    | Nombre del ejecutable (`comm`)                        |
+| RSS (KB)  | Resident Set Size en KB                               |
+| MEM %     | Porcentaje de RAM total consumida (dos decimales)     |
+
+---
+
+## Compilación y uso
+
+```bash
+# 1. Compilar
+make
+
+# 2. Cargar el módulo
+sudo insmod mem_monitor.ko
+
+# 3. Leer las estadísticas
+cat /proc/mem_monitor
+
+# 4. Descargar el módulo
+sudo rmmod mem_monitor
+
+# 5. Limpiar archivos de compilación
+make clean
+```
+
+### Atajo todo-en-uno (compilar + cargar + leer)
+
+```bash
+make test
+```
+
+---
+
+## Ejemplo de salida
+
+```
+========================================
+   MONITOR DE MEMORIA DEL SISTEMA
+========================================
+
+[ Estadísticas de Memoria ]
+  memoria_usada    : 3145728 KB  (3072 MB)
+  memoria_libre    : 1048576 KB  (1024 MB)
+  memoria_cache    : 2097152 KB  (2048 MB)
+  swap_usada       :  524288 KB  ( 512 MB)
+
+[ Fallos de Página ]
+  fallos_menores   : 48291047
+  fallos_mayores   : 12834
+
+[ Páginas ]
+  paginas_activas  : 2621440 KB  (2560 MB)
+  paginas_inactivas: 1835008 KB  (1792 MB)
+
+========================================
+   TOP 10 PROCESOS - USO DE MEMORIA
+========================================
+PID    NOMBRE                  RSS (KB)   MEM %
+------------------------------------------------------
+1234   firefox                   512000   6.25%
+5678   code                      409600   5.00%
+ 891   chrome                    358400   4.37%
+2345   postgres                  204800   2.50%
+3456   java                      163840   2.00%
+4567   python3                    81920   1.00%
+6789   node                       65536   0.80%
+7890   gnome-shell                57344   0.70%
+8901   Xorg                       40960   0.50%
+9012   pulseaudio                 16384   0.20%
+------------------------------------------------------
+  Memoria total del sistema: 8192000 KB (8000 MB)
+```
+
+---
+
+## Verificar logs del kernel
+
+```bash
+# Ver mensajes de carga/descarga
+dmesg | grep mem_monitor
+
+```
