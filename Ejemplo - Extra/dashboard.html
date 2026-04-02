@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>File Analyzer Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --bg2: #090d1a;
+    --panel: #0b1120;
+    --border: #1a2a4a;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --green: #00ff88;
+    --yellow: #ffd700;
+    --red: #ff3355;
+    --text: #c8d8f0;
+    --text-dim: #4a6080;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg2);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  .logo {
+    font-family: 'Orbitron', sans-serif;
+    letter-spacing: 2px;
+    font-size: 0.95rem;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .status { font-size: 0.72rem; color: var(--text-dim); display: flex; gap: 14px; }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 6px;
+    background: var(--red);
+  }
+  .dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+
+  main {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 16px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px;
+  }
+
+  .title {
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-family: 'Orbitron', sans-serif;
+  }
+
+  .login-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr auto auto;
+    gap: 8px;
+  }
+
+  .login-grid input, .login-grid button {
+    border: 1px solid var(--border);
+    background: #060a14;
+    color: var(--text);
+    border-radius: 4px;
+    padding: 8px;
+    font-family: inherit;
+    font-size: 0.78rem;
+  }
+
+  .login-grid button {
+    border-color: var(--accent);
+    color: var(--accent);
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .login-grid button:hover { background: var(--accent); color: var(--bg); }
+
+  #btn-logout {
+    border-color: var(--red);
+    color: var(--red);
+  }
+
+  #btn-logout:hover {
+    background: var(--red);
+    color: var(--bg);
+  }
+
+  .log-line {
+    margin-top: 8px;
+    font-size: 0.70rem;
+    color: var(--text-dim);
+    min-height: 1.1em;
+  }
+
+  .grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  }
+
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    background: #0a1222;
+  }
+
+  .card-label { font-size: 0.64rem; color: var(--text-dim); margin-bottom: 7px; }
+  .card-value { color: var(--accent); font-family: 'Orbitron', sans-serif; font-size: 1.15rem; }
+
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  @media (max-width: 900px) {
+    .two-col { grid-template-columns: 1fr; }
+    .login-grid { grid-template-columns: 1fr; }
+  }
+
+  .gauge-row {
+    display: grid;
+    grid-template-columns: 130px 1fr 64px;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.74rem;
+  }
+
+  .bar-track {
+    height: 8px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .bar-fill { height: 100%; transition: width 0.35s ease; }
+
+  #sparkline {
+    width: 100%;
+    height: 120px;
+    display: block;
+  }
+
+  .proc-row {
+    display: grid;
+    grid-template-columns: 45px 1fr 90px 80px;
+    gap: 8px;
+    font-size: 0.74rem;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .alert-row {
+    display: grid;
+    grid-template-columns: 72px 1fr 90px;
+    gap: 8px;
+    font-size: 0.73rem;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .file-row {
+    display: grid;
+    grid-template-columns: 1fr 110px 100px 84px;
+    gap: 8px;
+    font-size: 0.73rem;
+    padding: 7px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+
+  .badge {
+    text-align: center;
+    border-radius: 3px;
+    padding: 3px 5px;
+    font-size: 0.65rem;
+  }
+
+  .sev {
+    text-align: center;
+    border-radius: 3px;
+    padding: 3px 5px;
+    font-size: 0.65rem;
+  }
+
+  .sev-LOW { background: rgba(0,255,136,0.18); color: var(--green); }
+  .sev-MEDIUM { background: rgba(255,215,0,0.18); color: var(--yellow); }
+  .sev-HIGH { background: rgba(255,51,85,0.18); color: var(--red); }
+
+  .new-yes { background: rgba(0,255,136,0.18); color: var(--green); }
+  .new-no { background: rgba(255,255,255,0.08); color: var(--text-dim); }
+  .del-yes { background: rgba(255,51,85,0.18); color: var(--red); }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">FILE ANALYZER DASHBOARD</div>
+  <div class="status">
+    <div><span id="ws-dot" class="dot"></span><span id="ws-state">DESCONECTADO</span></div>
+    <div id="timestamp">--:--:--</div>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="title">Conexion y Login</div>
+    <div class="login-grid">
+      <input id="ws-url" type="text" value="localhost:8081" placeholder="host:puerto">
+      <input id="username" type="text" value="admin1" placeholder="usuario">
+      <input id="password" type="password" value="admin1" placeholder="password">
+      <button id="btn-connect" type="button">Iniciar sesion</button>
+      <button id="btn-logout" type="button">Cerrar sesion</button>
+    </div>
+    <div id="client-log" class="log-line">Ingresa credenciales y presiona "Iniciar sesion".</div>
+  </section>
+
+  <section class="panel">
+    <div class="title">Memoria</div>
+    <div class="grid">
+      <div class="card"><div class="card-label">Usada (MB)</div><div class="card-value" id="c-used">-</div></div>
+      <div class="card"><div class="card-label">Libre (MB)</div><div class="card-value" id="c-free">-</div></div>
+      <div class="card"><div class="card-label">Cache (MB)</div><div class="card-value" id="c-cache">-</div></div>
+      <div class="card"><div class="card-label">Swap (MB)</div><div class="card-value" id="c-swap">-</div></div>
+      <div class="card"><div class="card-label">Minor Faults</div><div class="card-value" id="f-minor">-</div></div>
+      <div class="card"><div class="card-label">Major Faults</div><div class="card-value" id="f-major">-</div></div>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <div class="title">Distribucion RAM</div>
+      <div class="gauge-row"><div>Usada</div><div class="bar-track"><div id="bar-used" class="bar-fill" style="background:#00d4ff;width:0"></div></div><div id="pct-used">0%</div></div>
+      <div class="gauge-row"><div>Libre</div><div class="bar-track"><div id="bar-free" class="bar-fill" style="background:#00ff88;width:0"></div></div><div id="pct-free">0%</div></div>
+      <div class="gauge-row"><div>Cache</div><div class="bar-track"><div id="bar-cache" class="bar-fill" style="background:#b06aff;width:0"></div></div><div id="pct-cache">0%</div></div>
+      <div class="gauge-row"><div>Swap</div><div class="bar-track"><div id="bar-swap" class="bar-fill" style="background:#ffd700;width:0"></div></div><div id="pct-swap">0%</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="title">Historico RAM</div>
+      <canvas id="sparkline"></canvas>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <div class="title">Top Procesos</div>
+      <div id="proc-list"></div>
+    </div>
+    <div class="panel">
+      <div class="title">Alertas</div>
+      <div id="alert-list"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="title">Archivos monitoreados</div>
+    <div id="file-list"></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtMB = kb => kb == null ? '-' : (kb / 1024).toFixed(0);
+const fmtNum = n => n == null ? '-' : Number(n).toLocaleString('es');
+
+let ws = null;
+let isAuthenticated = false;
+const MAX_HISTORY = 40;
+const history = { used: [], free: [], cache: [] };
+
+function logMsg(msg) {
+  $('client-log').textContent = '[' + new Date().toLocaleTimeString('es') + '] ' + msg;
+}
+
+function setStatus(online, text) {
+  $('ws-dot').className = 'dot' + (online ? ' online' : '');
+  $('ws-state').textContent = text;
+}
+
+function resetDashboard() {
+  $('timestamp').textContent = '--:--:--';
+  $('c-used').textContent = '-';
+  $('c-free').textContent = '-';
+  $('c-cache').textContent = '-';
+  $('c-swap').textContent = '-';
+  $('f-minor').textContent = '-';
+  $('f-major').textContent = '-';
+  $('bar-used').style.width = '0%';
+  $('bar-free').style.width = '0%';
+  $('bar-cache').style.width = '0%';
+  $('bar-swap').style.width = '0%';
+  $('pct-used').textContent = '0%';
+  $('pct-free').textContent = '0%';
+  $('pct-cache').textContent = '0%';
+  $('pct-swap').textContent = '0%';
+  $('proc-list').innerHTML = '';
+  $('alert-list').innerHTML = '';
+  $('file-list').innerHTML = '';
+  history.used.length = 0;
+  history.free.length = 0;
+  history.cache.length = 0;
+  drawSparkline();
+}
+
+function logout() {
+  if (ws) {
+    ws.onclose = null;
+    ws.close();
+    ws = null;
+  }
+
+  isAuthenticated = false;
+  setStatus(false, 'DESCONECTADO');
+  resetDashboard();
+  logMsg('Sesion cerrada.');
+}
+
+function connectAndAuth() {
+  const url = $('ws-url').value.trim();
+  const username = $('username').value.trim();
+  const password = $('password').value;
+
+  if (!url || !username) {
+    logMsg('Completa URL y usuario');
+    return;
+  }
+
+  if (ws) {
+    ws.onclose = null;
+    ws.close();
+  }
+
+  isAuthenticated = false;
+
+  setStatus(false, 'CONECTANDO');
+  logMsg('Abriendo ws://' + url + ' ...');
+
+  try {
+    ws = new WebSocket('ws://' + url);
+  } catch (e) {
+    logMsg('URL invalida: ' + e.message);
+    return;
+  }
+
+  ws.onopen = () => {
+    setStatus(false, 'CONECTADO');
+    const payload = { type: 'auth', username, password };
+    ws.send(JSON.stringify(payload));
+    logMsg('Auth enviada para usuario: ' + username);
+  };
+
+  ws.onmessage = evt => {
+    let data;
+    try {
+      data = JSON.parse(evt.data);
+    } catch (_e) {
+      logMsg('Mensaje no JSON recibido');
+      return;
+    }
+
+    if (data.type === 'auth_required') {
+      const payload = { type: 'auth', username, password };
+      ws.send(JSON.stringify(payload));
+      logMsg('Servidor pidio auth, reenviando credenciales');
+      return;
+    }
+
+    if (data.type === 'auth') {
+      if (data.ok) {
+        isAuthenticated = true;
+        setStatus(true, 'AUTENTICADO');
+        logMsg('Login correcto');
+      } else {
+        isAuthenticated = false;
+        setStatus(false, 'AUTH ERROR');
+        logMsg('Login fallido: ' + (data.error || 'unknown'));
+      }
+      return;
+    }
+
+    updateUI(data);
+  };
+
+  ws.onerror = () => {
+    isAuthenticated = false;
+    setStatus(false, 'ERROR');
+    logMsg('Error de websocket');
+  };
+
+  ws.onclose = () => {
+    isAuthenticated = false;
+    setStatus(false, 'DESCONECTADO');
+    logMsg('Conexion cerrada');
+  };
+}
+
+function updateUI(d) {
+  const ts = d.timestamp ? d.timestamp.split('T')[1] || d.timestamp : '--:--:--';
+  $('timestamp').textContent = ts;
+
+  const mem = d.memory || {};
+  const usedKb = mem.used_kb ?? null;
+  const freeKb = mem.free_kb ?? null;
+  const cacheKb = mem.cached_kb ?? null;
+  const swapKb = mem.swap_used_kb ?? null;
+
+  $('c-used').textContent = fmtMB(usedKb);
+  $('c-free').textContent = fmtMB(freeKb);
+  $('c-cache').textContent = fmtMB(cacheKb);
+  $('c-swap').textContent = fmtMB(swapKb);
+
+  const pf = d.page_faults || {};
+  $('f-minor').textContent = fmtNum(pf.minor);
+  $('f-major').textContent = fmtNum(pf.major);
+
+  const total = mem.total_kb || ((usedKb || 0) + (freeKb || 0) + (cacheKb || 0)) || 1;
+  const pctUsed = usedKb != null ? (usedKb / total * 100).toFixed(1) : '0.0';
+  const pctFree = freeKb != null ? (freeKb / total * 100).toFixed(1) : '0.0';
+  const pctCache = cacheKb != null ? (cacheKb / total * 100).toFixed(1) : '0.0';
+  const pctSwap = swapKb != null ? Math.min((swapKb / total * 100), 100).toFixed(1) : '0.0';
+
+  $('bar-used').style.width = pctUsed + '%';
+  $('bar-free').style.width = pctFree + '%';
+  $('bar-cache').style.width = pctCache + '%';
+  $('bar-swap').style.width = pctSwap + '%';
+
+  $('pct-used').textContent = pctUsed + '%';
+  $('pct-free').textContent = pctFree + '%';
+  $('pct-cache').textContent = pctCache + '%';
+  $('pct-swap').textContent = pctSwap + '%';
+
+  if (usedKb != null) history.used.push(usedKb);
+  if (freeKb != null) history.free.push(freeKb);
+  if (cacheKb != null) history.cache.push(cacheKb);
+
+  if (history.used.length > MAX_HISTORY) history.used.shift();
+  if (history.free.length > MAX_HISTORY) history.free.shift();
+  if (history.cache.length > MAX_HISTORY) history.cache.shift();
+
+  drawSparkline();
+
+  const procs = d.top_processes || [];
+  $('proc-list').innerHTML = procs.map((p, i) => (
+    '<div class="proc-row">' +
+    '<div>' + (i + 1) + '</div>' +
+    '<div>' + (p.name || '-') + '</div>' +
+    '<div>' + fmtNum(p.rss_kb) + '</div>' +
+    '<div>' + Number(p.mem_percent || 0).toFixed(2) + '%</div>' +
+    '</div>'
+  )).join('') || '<div class="proc-row"><div>-</div><div>Sin datos</div><div>-</div><div>-</div></div>';
+
+  const alerts = d.alerts || [];
+  $('alert-list').innerHTML = alerts.map(a => (
+    '<div class="alert-row">' +
+    '<div class="sev sev-' + a.severity + '">' + a.severity + '</div>' +
+    '<div>' + (a.description || '-') + '</div>' +
+    '<div>' + (a.timestamp ? new Date(a.timestamp).toLocaleTimeString('es') : '-') + '</div>' +
+    '</div>'
+  )).join('') || '<div class="alert-row"><div>-</div><div>Sin alertas</div><div>-</div></div>';
+
+  const files = d.files || [];
+  $('file-list').innerHTML = files.map(f => (
+    '<div class="file-row">' +
+    '<div>' + (f.path || '-') + '</div>' +
+    '<div>' + (f.size_bytes != null ? fmtNum(f.size_bytes) + ' B' : '-') + '</div>' +
+    '<div>' + (f.sha256 ? f.sha256 : '-') + '</div>' +
+    '<div class="badge ' + (f.deleted ? 'del-yes' : (f.is_new ? 'new-yes' : 'new-no')) + '">' + (f.deleted ? 'ELIMINADO' : (f.is_new ? 'NUEVO' : 'OK')) + '</div>' +
+    '</div>'
+  )).join('') || '<div class="file-row"><div>-</div><div>-</div><div>-</div><div>-</div></div>';
+}
+
+function drawSparkline() {
+  const canvas = $('sparkline');
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const W = Math.max(320, Math.floor(rect.width));
+  const H = 120;
+
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+
+  const sets = [
+    { data: history.used, color: '#00d4ff' },
+    { data: history.free, color: '#00ff88' },
+    { data: history.cache, color: '#b06aff' }
+  ];
+
+  const allVals = sets.flatMap(s => s.data);
+  if (!allVals.length) return;
+
+  const maxVal = Math.max(...allVals, 1);
+  const step = W / Math.max(MAX_HISTORY - 1, 1);
+
+  sets.forEach(s => {
+    if (!s.data.length) return;
+    ctx.beginPath();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = s.color;
+
+    s.data.forEach((v, i) => {
+      const x = i * step;
+      const y = H - 8 - ((v / maxVal) * (H - 16));
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+
+    ctx.stroke();
+  });
+}
+
+$('btn-connect').addEventListener('click', connectAndAuth);
+$('btn-logout').addEventListener('click', logout);
+$('password').addEventListener('keydown', e => {
+  if (e.key === 'Enter') connectAndAuth();
+});
+
+window.addEventListener('resize', drawSparkline);
+window.addEventListener('load', () => {
+  drawSparkline();
+  setStatus(false, 'DESCONECTADO');
+});
+</script>
+</body>
+</html>
